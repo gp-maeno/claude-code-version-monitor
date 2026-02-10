@@ -15,6 +15,7 @@ CHANGELOG_PAGE="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
 NPM_PAGE="https://www.npmjs.com/package/@anthropic-ai/claude-code"
 VERSION_FILE="last-version.txt"
 MAX_CHANGES_LENGTH=1500
+GEMINI_API_URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 # ------------------------------------------------------------
 # npm から最新バージョンを取得
@@ -76,6 +77,69 @@ fetch_changelog() {
 }
 
 # ------------------------------------------------------------
+# Gemini API で変更内容を日本語要約
+# ------------------------------------------------------------
+summarize_with_gemini() {
+  local changes="$1"
+  local version="$2"
+
+  # API キーが未設定の場合はスキップ
+  if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+    echo "（Gemini API キーが未設定のため要約をスキップしました）"
+    return
+  fi
+
+  # プロンプト構築
+  local prompt
+  prompt="あなたはソフトウェアのリリースノート翻訳者です。
+以下は Claude Code v${version} の CHANGELOG（英語）です。
+これを日本語で簡潔に要約してください。
+
+ルール:
+- 箇条書きで、重要な変更から順に記載
+- 各項目は1行で簡潔に
+- 技術用語はそのまま英語で残してOK
+- 最大10項目まで
+- 前置きや挨拶は不要。箇条書きのみ出力
+
+CHANGELOG:
+${changes}"
+
+  # Gemini API 呼び出し
+  local response
+  response=$(curl -sf -X POST \
+    "${GEMINI_API_URL}?key=${GEMINI_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "$(jq -n --arg prompt "$prompt" '{
+      contents: [{ parts: [{ text: $prompt }] }],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 1024
+      }
+    }')" 2>/dev/null) || {
+    echo "（Gemini API の呼び出しに失敗しました）"
+    return
+  }
+
+  # レスポンスからテキストを抽出
+  local summary
+  summary=$(echo "$response" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
+
+  if [[ -z "$summary" ]]; then
+    # エラー詳細をログに出力
+    local error_msg
+    error_msg=$(echo "$response" | jq -r '.error.message // empty' 2>/dev/null)
+    if [[ -n "$error_msg" ]]; then
+      echo "::warning::Gemini API エラー: ${error_msg}"
+    fi
+    echo "（要約の生成に失敗しました）"
+    return
+  fi
+
+  echo "$summary"
+}
+
+# ------------------------------------------------------------
 # Markdown を Google Chat 形式に変換
 # ------------------------------------------------------------
 format_for_chat() {
@@ -95,6 +159,7 @@ send_notification() {
   local new_version="$1"
   local old_version="$2"
   local changes="$3"
+  local summary="$4"
   local now
   now=$(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M (JST)')
 
@@ -106,9 +171,11 @@ send_notification() {
     version_text="v${new_version} (初回検知)"
   fi
 
-  # 変更内容を Google Chat 形式に変換 & JSON エスケープ
+  # 変更内容・要約を Google Chat 形式に変換
   local formatted_changes
   formatted_changes=$(format_for_chat "$changes")
+  local formatted_summary
+  formatted_summary=$(format_for_chat "$summary")
 
   # JSON ペイロードを jq で安全に構築
   local payload
@@ -118,6 +185,7 @@ send_notification() {
     --arg version "$new_version" \
     --arg date_text "$now" \
     --arg changes "$formatted_changes" \
+    --arg summary "$formatted_summary" \
     --arg changelog_url "$CHANGELOG_PAGE" \
     --arg npm_url "$NPM_PAGE" \
     '{
@@ -150,9 +218,17 @@ send_notification() {
               ]
             },
             {
-              header: "変更内容",
-              collapsible: (($changes | length) > 500),
-              uncollapsibleWidgetsCount: 1,
+              header: "📝 要約（日本語）",
+              widgets: [{
+                textParagraph: {
+                  text: (if $summary == "" then "<i>要約を生成できませんでした</i>" else $summary end)
+                }
+              }]
+            },
+            {
+              header: "変更内容（CHANGELOG）",
+              collapsible: true,
+              uncollapsibleWidgetsCount: 0,
               widgets: [{
                 textParagraph: {
                   text: (if $changes == "" then "<i>変更内容を取得できませんでした</i>" else $changes end)
@@ -230,10 +306,16 @@ main() {
   changes=$(fetch_changelog "$latest_version")
   echo "   変更内容取得完了 (${#changes} chars)"
 
-  # 4. Google Chat に通知
-  send_notification "$latest_version" "$last_version" "$changes"
+  # 4. Gemini で日本語要約を生成
+  echo "🤖 日本語要約を生成中..."
+  local summary
+  summary=$(summarize_with_gemini "$changes" "$latest_version")
+  echo "   要約生成完了 (${#summary} chars)"
 
-  # 5. バージョンファイルを更新
+  # 5. Google Chat に通知
+  send_notification "$latest_version" "$last_version" "$changes" "$summary"
+
+  # 6. バージョンファイルを更新
   echo -n "$latest_version" > "$VERSION_FILE"
   echo "📝 バージョンファイル更新: v${latest_version}"
 
@@ -248,7 +330,10 @@ main() {
 | **新バージョン** | v${latest_version} |
 | **検出日時** | $(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M JST') |
 
-### 変更内容
+### 要約（日本語）
+${summary}
+
+### 変更内容（CHANGELOG）
 \`\`\`
 ${changes:0:2000}
 \`\`\`

@@ -20,6 +20,7 @@ jobs:
       - name: Check for Claude Code updates
         env:
           GCHAT_WEBHOOK_URL: ${{ secrets.GCHAT_WEBHOOK_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: bash scripts/check-update.sh
 
       - name: Commit version update
