@@ -2,8 +2,8 @@ name: Claude Code Version Monitor
 
 on:
   schedule:
-    # 毎日 00:00 UTC（JST 09:00）に実行
-    - cron: '0 0 * * *'
+    # 毎日 JST 09:00〜19:00 に1時間ごと（UTC 00:00〜10:00）
+    - cron: '0 0-10 * * *'
   workflow_dispatch:
     # 手動実行も可能
 
