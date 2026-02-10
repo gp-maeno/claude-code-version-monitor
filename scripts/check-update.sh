@@ -249,13 +249,23 @@ send_notification() {
     exit 1
   fi
 
+  # スレッド返信の設定
+  local webhook_url="$GCHAT_WEBHOOK_URL"
+  if [[ -n "${GCHAT_THREAD_NAME:-}" ]]; then
+    # 既存スレッドへの返信モード
+    webhook_url="${webhook_url}&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
+    # ペイロードに thread.name を追加
+    payload=$(echo "$payload" | jq --arg thread_name "$GCHAT_THREAD_NAME" '.thread = { name: $thread_name }')
+    echo "   スレッド返信モード: ${GCHAT_THREAD_NAME}"
+  fi
+
   # 送信
   local http_code
   http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
     -X POST \
     -H "Content-Type: application/json; charset=UTF-8" \
     -d "$payload" \
-    "$GCHAT_WEBHOOK_URL")
+    "$webhook_url")
 
   if [[ "$http_code" == "200" ]]; then
     echo "✅ Google Chat 通知送信完了"

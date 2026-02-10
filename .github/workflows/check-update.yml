@@ -21,6 +21,7 @@ jobs:
         env:
           GCHAT_WEBHOOK_URL: ${{ secrets.GCHAT_WEBHOOK_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GCHAT_THREAD_NAME: ${{ secrets.GCHAT_THREAD_NAME }}
         run: bash scripts/check-update.sh
 
       - name: Commit version update
