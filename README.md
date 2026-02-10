@@ -4,7 +4,7 @@ Claude Code（`@anthropic-ai/claude-code`）のバージョンアップを GitHu
 
 ## 機能
 
-- 📦 **npm Registry 監視** — 最新バージョンを1時間ごとにチェック（JST 9:00〜19:00）
+- 📦 **npm Registry 監視** — 最新バージョンを1時間ごとにチェック（JST 7:00〜20:00）
 - 📋 **CHANGELOG 自動取得** — GitHub の CHANGELOG.md からリリースノートを抽出
 - 🤖 **日本語要約** — Gemini API で変更内容を日本語に自動要約
 - 💬 **Google Chat 通知** — Webhook 経由でカード形式のリッチ通知を送信
@@ -91,8 +91,8 @@ Claude Code（`@anthropic-ai/claude-code`）のバージョンアップを GitHu
 
 ```yaml
 schedule:
-  # JST 09:00〜19:00 に1時間ごと（現在の設定）
-  - cron: '0 0-10 * * *'
+  # JST 07:00〜20:00 に1時間ごと（現在の設定）
+  - cron: '0 22-23,0-11 * * *'
 
   # 毎日 09:00 JST のみ
   # - cron: '0 0 * * *'
@@ -126,7 +126,7 @@ GEMINI_API_URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-2
 | 日本語要約 | Gemini 2.5 Flash API（無料枠） |
 | 通知形式 | Google Chat Incoming Webhook（cardsV2） |
 | スレッド返信 | `messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD` |
-| 実行スケジュール | JST 09:00〜19:00（1時間ごと・計11回/日） |
+| 実行スケジュール | JST 07:00〜20:00（1時間ごと・計14回/日） |
 | 実行環境 | GitHub Actions（`ubuntu-latest`） |
 | バージョン記録 | `last-version.txt`（Git 自動コミット） |
 
@@ -135,7 +135,7 @@ GEMINI_API_URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-2
 - Claude Code はほぼ毎日リリースされます
 - マイナーパッチは CHANGELOG に記載されない場合があります
 - npm インストール方式は非推奨化が進行中のため、将来的にバージョン取得方法の見直しが必要になる可能性があります
-- Gemini API の無料枠には日次のリクエスト制限があります（1日11回の利用では問題になりません）
+- Gemini API の無料枠には日次のリクエスト制限があります（1日14回の利用では問題になりません）
 
 ## ライセンス
 
