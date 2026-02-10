@@ -171,9 +171,7 @@ send_notification() {
     version_text="v${new_version} (初回検知)"
   fi
 
-  # 変更内容・要約を Google Chat 形式に変換
-  local formatted_changes
-  formatted_changes=$(format_for_chat "$changes")
+  # 要約を Google Chat 形式に変換
   local formatted_summary
   formatted_summary=$(format_for_chat "$summary")
 
@@ -184,7 +182,6 @@ send_notification() {
     --arg version_text "$version_text" \
     --arg version "$new_version" \
     --arg date_text "$now" \
-    --arg changes "$formatted_changes" \
     --arg summary "$formatted_summary" \
     --arg changelog_url "$CHANGELOG_PAGE" \
     --arg npm_url "$NPM_PAGE" \
@@ -218,20 +215,10 @@ send_notification() {
               ]
             },
             {
-              header: "📝 要約（日本語）",
-              widgets: [{
-                textParagraph: {
-                  text: (if $summary == "" then "<i>要約を生成できませんでした</i>" else $summary end)
-                }
-              }]
-            },
-            {
               header: "変更内容（CHANGELOG）",
-              collapsible: true,
-              uncollapsibleWidgetsCount: 0,
               widgets: [{
                 textParagraph: {
-                  text: (if $changes == "" then "<i>変更内容を取得できませんでした</i>" else $changes end)
+                  text: (if $summary == "" then "<i>変更内容を取得できませんでした</i>" else $summary end)
                 }
               }]
             },
