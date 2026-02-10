@@ -192,7 +192,7 @@ send_notification() {
           header: {
             title: "🔄 Claude Code アップデート",
             subtitle: $version_text,
-            imageUrl: "https://avatars.githubusercontent.com/u/76263028",
+            imageUrl: "https://cdn.stickermule.com/artworks/be75b541-e429-4b61-a058-6a04bc35f712/large.png",
             imageType: "CIRCLE"
           },
           sections: [
