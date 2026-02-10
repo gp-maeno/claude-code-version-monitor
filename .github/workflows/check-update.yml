@@ -24,15 +24,14 @@ jobs:
           GCHAT_THREAD_NAME: ${{ secrets.GCHAT_THREAD_NAME }}
         run: bash scripts/check-update.sh
 
-      # NOTE: テスト中のため一時的にコメントアウト
-      # - name: Commit version update
-      #   run: |
-      #     git config user.name "github-actions[bot]"
-      #     git config user.email "github-actions[bot]@users.noreply.github.com"
-      #     if git diff --quiet last-version.txt 2>/dev/null; then
-      #       echo "No version change. Nothing to commit."
-      #     else
-      #       git add last-version.txt
-      #       git commit -m "chore: update last-version to $(cat last-version.txt)"
-      #       git push
-      #     fi
+      - name: Commit version update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet last-version.txt 2>/dev/null; then
+            echo "No version change. Nothing to commit."
+          else
+            git add last-version.txt
+            git commit -m "chore: update last-version to $(cat last-version.txt)"
+            git push
+          fi
