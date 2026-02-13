@@ -49,8 +49,8 @@ fetch_changelog() {
   local changelog
 
   changelog=$(curl -sf "$CHANGELOG_URL" 2>/dev/null) || {
-    echo "変更内容を取得できませんでした。"
-    return
+    echo "::warning::CHANGELOG の取得に失敗しました。次回実行時に再取得します。"
+    return 1
   }
 
   # バージョンセクションを抽出
@@ -62,8 +62,8 @@ fetch_changelog() {
   changes=$(echo "$changelog" | sed -n "/^## ${escaped_version}/,/^## [0-9]/p" | sed '1d;$d')
 
   if [[ -z "$changes" ]]; then
-    echo "CHANGELOG に v${version} の記載がありません。"
-    return
+    echo "::notice::CHANGELOG に v${version} の記載がまだありません。次回実行時に再取得します。"
+    return 1
   fi
 
   # 長すぎる場合は切り詰め
@@ -298,9 +298,12 @@ main() {
 
   echo "🆕 新バージョン検知: v${last_version:-"?"} → v${latest_version}"
 
-  # 3. 変更内容を取得
+  # 3. 変更内容を取得（CHANGELOG 未更新の場合は次回に回す）
   local changes
-  changes=$(fetch_changelog "$latest_version")
+  if ! changes=$(fetch_changelog "$latest_version"); then
+    echo "⏭️  CHANGELOG 未取得のためスキップ。次回実行時に再チェックします。"
+    exit 0
+  fi
   echo "   変更内容取得完了 (${#changes} chars)"
 
   # 4. Gemini で日本語要約を生成
