@@ -14,7 +14,7 @@ CHANGELOG_URL="https://raw.githubusercontent.com/anthropics/claude-code/main/CHA
 CHANGELOG_PAGE="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
 NPM_PAGE="https://www.npmjs.com/package/@anthropic-ai/claude-code"
 VERSION_FILE="last-version.txt"
-MAX_CHANGES_LENGTH=1500
+MAX_CHANGES_LENGTH=4000
 GEMINI_API_URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 # ------------------------------------------------------------
@@ -42,10 +42,12 @@ get_last_version() {
 }
 
 # ------------------------------------------------------------
-# CHANGELOG から対象バージョンの変更内容を抽出
+# CHANGELOG から last_version より新しいバージョンの変更内容を抽出
+# 引数: $1=latest_version, $2=last_version（空の場合は latest のみ）
 # ------------------------------------------------------------
 fetch_changelog() {
-  local version="$1"
+  local latest_version="$1"
+  local last_version="${2:-}"
   local changelog
 
   changelog=$(curl -sf "$CHANGELOG_URL" 2>/dev/null) || {
@@ -53,20 +55,27 @@ fetch_changelog() {
     return 1
   }
 
-  # バージョンセクションを抽出
-  # パターン: ## x.x.x ... 次の ## まで
-  local escaped_version
-  escaped_version=$(echo "$version" | sed 's/\./\\./g')
-
   local changes
-  changes=$(echo "$changelog" | sed -n "/^## ${escaped_version}/,/^## [0-9]/p" | sed '1d;$d')
+
+  if [[ -n "$last_version" ]]; then
+    # last_version のセクション手前までを抽出（last_version 自身は含めない）
+    local escaped_last
+    escaped_last=$(echo "$last_version" | sed 's/\./\\./g')
+    # 先頭から ## {last_version} の直前行までを取得し、その中の ## セクションのみ残す
+    changes=$(echo "$changelog" | sed -n "1,/^## ${escaped_last}/p" | sed '$d' | sed -n '/^## [0-9]/,$p')
+  else
+    # 初回: latest_version のセクションのみ抽出
+    local escaped_latest
+    escaped_latest=$(echo "$latest_version" | sed 's/\./\\./g')
+    changes=$(echo "$changelog" | sed -n "/^## ${escaped_latest}/,/^## [0-9]/p" | sed '$d')
+  fi
 
   if [[ -z "$changes" ]]; then
-    echo "::notice::CHANGELOG に v${version} の記載がまだありません。次回実行時に再取得します。"
+    echo "::notice::CHANGELOG に v${latest_version} の記載がまだありません。次回実行時に再取得します。"
     return 1
   fi
 
-  # 長すぎる場合は切り詰め
+  # 長すぎる場合は切り詰め（バージョン境界で切る）
   if [[ ${#changes} -gt $MAX_CHANGES_LENGTH ]]; then
     changes="${changes:0:$MAX_CHANGES_LENGTH}
 
@@ -81,7 +90,6 @@ fetch_changelog() {
 # ------------------------------------------------------------
 summarize_with_gemini() {
   local changes="$1"
-  local version="$2"
 
   # API キーが未設定の場合はスキップ
   if [[ -z "${GEMINI_API_KEY:-}" ]]; then
@@ -92,21 +100,37 @@ summarize_with_gemini() {
   # プロンプト構築
   local prompt
   prompt="あなたはソフトウェアのリリースノート翻訳者です。
-以下は Claude Code v${version} の CHANGELOG（英語）です。
-これを日本語で簡潔に要約してください。
+以下は Claude Code の CHANGELOG（英語）です。
+バージョンごとに日本語で簡潔に要約してください。
+
+出力フォーマット（厳守）:
+
+━━━━━━━━━━━━━━━
+📦 vX.X.X
+━━━━━━━━━━━━━━━
+
+【✨ Added】
+• 項目1
+• 項目2
+
+【💡 Improved】
+• 項目1
+
+【🐛 Fixed】
+• 項目1
+• 項目2
 
 ルール:
-- 以下のカテゴリ順にまとめて出力すること（該当がないカテゴリは省略）:
-  1. ✨ Added（新機能）
-  2. 💡 Improved（改善）
-  3. 🐛 Fixed（バグ修正）
-  4. その他
-- 各カテゴリは上記の絵文字付き見出し（例: \"✨ Added\"）を1行目に書き、続けて箇条書き
-- [VSCode] 等のプラットフォームプレフィックスがある項目はカテゴリ名に含める（例: \"✨ [VSCode] Added\"）
-- 各項目は1行で簡潔に
+- 入力には \"## x.x.x\" 形式のバージョン見出しが含まれる
+- バージョンが1つだけの場合は ━ 線とバージョン見出し（📦 vX.X.X）を省略し、カテゴリ見出しから始める
+- バージョンが複数の場合は上記フォーマットで出力する（━ 線は半角15文字分）
+- カテゴリ順: ✨ Added → 💡 Improved → 🐛 Fixed → その他（該当なしは省略）
+- カテゴリ見出しの前に空行を1つ入れること
+- [VSCode] 等のプレフィックスがある項目はカテゴリ名に含める（例: 【✨ [VSCode] Added】）
+- 各項目は \"• \" で始め、1行で簡潔に
 - 技術用語はそのまま英語で残してOK
 - Added は全項目を漏れなく出力。それ以外のカテゴリは最大5項目まで（省略時は「他 N 件」と末尾に記載）
-- 前置きや挨拶は不要
+- 前置きや挨拶は不要。フォーマットのみ出力
 
 CHANGELOG:
 ${changes}"
@@ -120,7 +144,7 @@ ${changes}"
       contents: [{ parts: [{ text: $prompt }] }],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 1024
+        maxOutputTokens: 4096
       }
     }')" 2>/dev/null) || {
     echo "（Gemini API の呼び出しに失敗しました）"
@@ -177,6 +201,17 @@ send_notification() {
     version_text="v${new_version} (初回検知)"
   fi
 
+  # CHANGELOG 内のバージョン数をカウント
+  local version_count
+  version_count=$(echo "$changes" | grep -c '^## [0-9]' || true)
+  # バージョン表示テキスト（複数バージョンの場合は件数を付加）
+  local version_display
+  if [[ "$version_count" -gt 1 ]]; then
+    version_display="<b>${new_version}</b>（${version_count} バージョン分）"
+  else
+    version_display="<b>${new_version}</b>"
+  fi
+
   # 要約を Google Chat 形式に変換
   local formatted_summary
   formatted_summary=$(format_for_chat "$summary")
@@ -186,7 +221,7 @@ send_notification() {
   payload=$(jq -n \
     --arg card_id "claude-code-update-${new_version}" \
     --arg version_text "$version_text" \
-    --arg version "$new_version" \
+    --arg version "$version_display" \
     --arg date_text "$now" \
     --arg summary "$formatted_summary" \
     --arg changelog_url "$CHANGELOG_PAGE" \
@@ -207,7 +242,7 @@ send_notification() {
                 {
                   decoratedText: {
                     topLabel: "バージョン",
-                    text: ("<b>" + $version + "</b>"),
+                    text: $version,
                     startIcon: { knownIcon: "BOOKMARK" }
                   }
                 },
@@ -221,7 +256,6 @@ send_notification() {
               ]
             },
             {
-              header: "変更内容（CHANGELOG）",
               widgets: [{
                 textParagraph: {
                   text: (if $summary == "" then "<i>変更内容を取得できませんでした</i>" else $summary end)
@@ -282,6 +316,58 @@ send_notification() {
 }
 
 # ------------------------------------------------------------
+# .env ファイルの読み込み（ローカル実行用）
+# ------------------------------------------------------------
+load_env() {
+  local script_dir
+  script_dir=$(cd "$(dirname "$0")/.." && pwd)
+  local env_file="${script_dir}/.env"
+
+  if [[ -f "$env_file" ]]; then
+    # コメント行と空行を除外し、export して読み込む
+    while IFS= read -r line; do
+      # 空行とコメント行をスキップ
+      [[ -z "$line" || "$line" =~ ^# ]] && continue
+      export "$line"
+    done < "$env_file"
+    echo "   .env ファイルを読み込みました: ${env_file}"
+  fi
+}
+
+# ------------------------------------------------------------
+# テストモード: 指定バージョン範囲で通知をテスト送信
+# usage: check-update.sh --test <old_version> <new_version>
+# バージョンファイルは更新しない
+# ------------------------------------------------------------
+run_test() {
+  local old_version="$1"
+  local new_version="$2"
+
+  echo "🧪 テストモード: v${old_version} → v${new_version}"
+  echo "   ※ バージョンファイルは更新されません"
+
+  # .env から環境変数を読み込む
+  load_env
+
+  # 変更内容を取得
+  local changes
+  if ! changes=$(fetch_changelog "$new_version" "$old_version"); then
+    echo "❌ CHANGELOG の取得に失敗しました"
+    exit 1
+  fi
+  echo "   変更内容取得完了 (${#changes} chars)"
+
+  # Gemini で日本語要約を生成
+  echo "🤖 日本語要約を生成中..."
+  local summary
+  summary=$(summarize_with_gemini "$changes")
+  echo "   要約生成完了 (${#summary} chars)"
+
+  # Google Chat に通知
+  send_notification "$new_version" "$old_version" "$changes" "$summary"
+}
+
+# ------------------------------------------------------------
 # メイン処理
 # ------------------------------------------------------------
 main() {
@@ -306,7 +392,7 @@ main() {
 
   # 3. 変更内容を取得（CHANGELOG 未更新の場合は次回に回す）
   local changes
-  if ! changes=$(fetch_changelog "$latest_version"); then
+  if ! changes=$(fetch_changelog "$latest_version" "$last_version"); then
     echo "⏭️  CHANGELOG 未取得のためスキップ。次回実行時に再チェックします。"
     exit 0
   fi
@@ -315,7 +401,7 @@ main() {
   # 4. Gemini で日本語要約を生成
   echo "🤖 日本語要約を生成中..."
   local summary
-  summary=$(summarize_with_gemini "$changes" "$latest_version")
+  summary=$(summarize_with_gemini "$changes")
   echo "   要約生成完了 (${#summary} chars)"
 
   # 5. Google Chat に通知
@@ -347,4 +433,14 @@ EOF
   fi
 }
 
-main "$@"
+# エントリーポイント: --test モードの判定
+if [[ "${1:-}" == "--test" ]]; then
+  if [[ $# -lt 3 ]]; then
+    echo "usage: $0 --test <old_version> <new_version>"
+    echo "例:    $0 --test 2.1.41 2.1.44"
+    exit 1
+  fi
+  run_test "$2" "$3"
+else
+  main "$@"
+fi

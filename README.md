@@ -68,7 +68,40 @@ Claude Code（`@anthropic-ai/claude-code`）のバージョンアップを GitHu
 3. **「Run workflow」** → **「Run workflow」** をクリック
 4. Google Chat に通知が届けば成功
 
-> テスト通知を出したい場合は `last-version.txt` の内容を古いバージョン（例: `0.0.0`）に書き換えてコミットしてください。
+## ローカルでのテスト実行
+
+実際の Google Chat Webhook に通知を送って動作確認できます。バージョンファイルは更新されないため、繰り返しテスト可能です。
+
+### 1. 環境変数の設定
+
+```bash
+cp .env.example .env
+```
+
+`.env` を編集して実際の値を入力:
+
+```
+GCHAT_WEBHOOK_URL=https://chat.googleapis.com/v1/spaces/XXXXX/messages?key=XXXXX&token=XXXXX
+GEMINI_API_KEY=AIzaSy...
+```
+
+> `.env` は `.gitignore` に含まれているため Git にコミットされません。
+
+### 2. テスト通知の送信
+
+```bash
+# 単一バージョンの通知テスト（2.1.43 → 2.1.44）
+bash scripts/check-update.sh --test 2.1.43 2.1.44
+
+# 複数バージョンをまとめた通知テスト（2.1.41 → 2.1.44）
+bash scripts/check-update.sh --test 2.1.41 2.1.44
+```
+
+`--test` モードでは:
+- 指定したバージョン範囲の CHANGELOG を取得
+- Gemini で日本語要約を生成
+- Google Chat に通知を送信
+- `last-version.txt` は**更新しない**（何度でもテスト可能）
 
 ## ファイル構成
 
@@ -77,7 +110,9 @@ Claude Code（`@anthropic-ai/claude-code`）のバージョンアップを GitHu
 │   └── workflows/
 │       └── check-update.yml   # GitHub Actions ワークフロー
 ├── scripts/
-│   └── check-update.sh        # メインスクリプト
+│   └── check-update.sh        # メインスクリプト（--test モード対応）
+├── .env.example                # 環境変数テンプレート
+├── .env                        # 環境変数（※ .gitignore 対象）
 ├── last-version.txt            # 最後に検知したバージョン（自動更新）
 ├── README.md
 └── LICENSE

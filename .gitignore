@@ -9,6 +9,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Environment variables
+.env
+.env.local
+
 # Node (if using clasp)
 node_modules/
 .clasp.json
