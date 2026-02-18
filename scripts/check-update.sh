@@ -14,7 +14,7 @@ CHANGELOG_URL="https://raw.githubusercontent.com/anthropics/claude-code/main/CHA
 CHANGELOG_PAGE="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
 NPM_PAGE="https://www.npmjs.com/package/@anthropic-ai/claude-code"
 VERSION_FILE="last-version.txt"
-MAX_CHANGES_LENGTH=4000
+MAX_CHANGES_LENGTH=12000
 GEMINI_API_URL="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 # ------------------------------------------------------------
@@ -121,7 +121,7 @@ summarize_with_gemini() {
 • 項目2
 
 ルール:
-- 入力には \"## x.x.x\" 形式のバージョン見出しが含まれる
+- 入力には \"## x.x.x\" 形式のバージョン見出しが含まれる。入力に含まれる全バージョンを必ず出力すること（小さなバージョンも省略禁止）
 - バージョンが1つだけの場合は ━ 線とバージョン見出し（📦 vX.X.X）を省略し、カテゴリ見出しから始める
 - バージョンが複数の場合は上記フォーマットで出力する（━ 線は半角15文字分）
 - カテゴリ順: ✨ Added → 💡 Improved → 🐛 Fixed → その他（該当なしは省略）
@@ -129,7 +129,11 @@ summarize_with_gemini() {
 - [VSCode] 等のプレフィックスがある項目はカテゴリ名に含める（例: 【✨ [VSCode] Added】）
 - 各項目は \"• \" で始め、1行で簡潔に
 - 技術用語はそのまま英語で残してOK
-- Added は全項目を漏れなく出力。それ以外のカテゴリは最大5項目まで（省略時は「他 N 件」と末尾に記載）
+- 項目数の制限（厳守）:
+  - ✨ Added: 全項目を漏れなく出力
+  - 💡 Improved: 最大5項目。6項目以上ある場合は5項目を出力した後に「• 他 N 件」と記載
+  - 🐛 Fixed: 最大3項目。4項目以上ある場合は3項目を出力した後に「• 他 N 件」と記載
+  - その他カテゴリ: 最大3項目（同様に省略時は「• 他 N 件」）
 - 前置きや挨拶は不要。フォーマットのみ出力
 
 CHANGELOG:
@@ -144,7 +148,7 @@ ${changes}"
       contents: [{ parts: [{ text: $prompt }] }],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 4096
+        maxOutputTokens: 16384
       }
     }')" 2>/dev/null) || {
     echo "（Gemini API の呼び出しに失敗しました）"
